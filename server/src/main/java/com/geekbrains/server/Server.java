@@ -8,14 +8,18 @@ import java.util.Vector;
 public class Server {
     private Vector<ClientHandler> clients;
     private AuthService authService;
+    private RepositoryHandler repositoryHandler;
 
     public AuthService getAuthService() {
         return authService;
     }
 
+    public RepositoryHandler getRepositoryHandler() { return repositoryHandler; }
+
     public Server() {
         clients = new Vector<>();
         authService = new SimpleAuthService();
+        repositoryHandler = new RepositoryHandler();
         try (ServerSocket serverSocket = new ServerSocket(8189)) {
             System.out.println("Сервер запущен на порту 8189");
             while (true) {
