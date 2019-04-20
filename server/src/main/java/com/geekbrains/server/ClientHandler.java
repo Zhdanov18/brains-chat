@@ -1,8 +1,6 @@
 package com.geekbrains.server;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
 
@@ -12,6 +10,11 @@ public class ClientHandler {
     private Socket socket;
     private DataInputStream in;
     private DataOutputStream out;
+
+    private boolean initRootDirectory;
+    private String path;
+
+    public String getPath() { return path; }
 
     public String getNickname() {
         return nickname;
@@ -35,6 +38,10 @@ public class ClientHandler {
                                 sendMsg("/authok " + nick);
                                 nickname = nick;
                                 server.subscribe(this);
+
+                                this.path = this.getNickname();
+                                this.initRootDirectory = server.getRepositoryHandler().initRootDirectory(this);
+
                                 break;
                             }
                         }
@@ -50,6 +57,9 @@ public class ClientHandler {
                                 String[] tokens = msg.split("\\s", 3);
                                 server.privateMsg(this, tokens[1], tokens[2]);
                             }
+
+                            repositoryControl(msg);
+
                         } else {
                             server.broadcastMsg(nickname + ": " + msg);
                         }
@@ -98,6 +108,52 @@ public class ClientHandler {
             socket.close();
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    private void repositoryControl(String msg) {
+        if (!initRootDirectory) {
+            return;
+        }
+        if(msg.startsWith("/send ")) {
+            String[] tokens = msg.split("\\s", 2);
+            String[] pathTokens = tokens[1].split("[\\\\|/]");
+
+            int bufferSize = 1024;
+            byte[] buffer = new byte[bufferSize];
+
+            try (FileInputStream in = new FileInputStream(tokens[1])){
+                int fileSize = in.available();
+                long offset = 0;
+                while (offset < fileSize) {
+                    int readBytes = in.read(buffer, 0, bufferSize);
+                    offset += readBytes;
+                    server.getRepositoryHandler().sendFile(this, pathTokens[pathTokens.length - 1], buffer, readBytes, offset == bufferSize ? false : true);
+                }
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+        }
+        if(msg.startsWith("/del ")) {
+            String[] tokens = msg.split("\\s", 2);
+            server.getRepositoryHandler().delete(this, tokens[1]);
+        }
+        if(msg.startsWith("/dir")) {
+            server.getRepositoryHandler().showFiles(this);
+        }
+        if(msg.startsWith("/cd ")) {
+            String[] tokens = msg.split("\\s", 2);
+            String result = server.getRepositoryHandler().setPath(this, tokens[1]);
+            if (result != null) {
+                this.path = result;
+            }
+        }
+        if(msg.startsWith("/md ")) {
+            String[] tokens = msg.split("\\s", 2);
+            server.getRepositoryHandler().makeDirectory(this, tokens[1]);
         }
     }
 }
